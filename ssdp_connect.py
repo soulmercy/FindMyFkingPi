@@ -15,10 +15,8 @@ class Connection():
 
     def handle_request(self):
         if self.__data.decode().startswith('M-SEARCH * HTTP/1.1\r\n'):
-            print("Got M-SEARCH")
             self.__handle_search()
         elif self.__data.decode().startswith('HTTP/1.1 200 OK\r\n'):
-            print("Got OK")
             self.__handle_ok()
 
     def __handle_search(self):
