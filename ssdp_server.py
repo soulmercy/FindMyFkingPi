@@ -2,6 +2,7 @@
 #coding:utf-8
 
 import socket
+import netifaces
 from ssdp_connect import Connection
 
 SSDP_ADDR = '239.255.255.250'
@@ -15,8 +16,8 @@ class SSDPServer():
         self.__s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         print(socket.getfqdn())
-        local_ip = socket.gethostbyname(socket.gethostname())
-        #local_ip = '10.0.2.4'
+        #local_ip = socket.gethostbyname(socket.gethostname())
+        local_ip = self.getlocalip()
         any_ip = '0.0.0.0'
         print("lip:%s, aip: %s" % (local_ip, any_ip))
 
@@ -32,6 +33,17 @@ class SSDPServer():
         #print (socket.inet_ntoa(socket.inet_aton(SSDP_ADDR) + socket.inet_aton(local_ip)))
         self.__s.setsockopt(socket.SOL_IP, socket.IP_ADD_MEMBERSHIP, socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ANY_ADDR))
         self.local_ip = local_ip
+
+    def getlocalip(self):
+        local_ip = ""
+        if netifaces.gateways()['default']:
+            default_if = netifaces.gateways()['default'][netifaces.AF_INET][0]
+            if_list = [netifaces.ifaddresses(ifaces) for ifaces in netifaces.interfaces() if ifaces == default_if]
+            if len(if_list):
+                local_ip = if_list[0]
+        if not local_ip:
+            local_ip = socket.gethostbyname(socket.gethostname())
+        return local_ip
 
     def start(self):
         while True:
