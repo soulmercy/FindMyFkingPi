@@ -4,7 +4,7 @@
 import socket
 import time
 import select
-import ssdp_server
+from ssdp_connect import Connection
 
 SSDP_ADDR = '239.255.255.250'
 SSDP_PORT = 1900
@@ -28,7 +28,7 @@ class SSDPClient():
             reads, _, _ = select.select([self.__s], [], [], 5)
             if reads:
                 data, addr = self.__s.recvfrom(2048)
-                conn = ssdp_server.Connection(self.__s, data, addr)
+                conn = Connection(self.__s, data, addr)
                 conn.handle_request()
                 if conn.is_find_service:
                     break
@@ -39,7 +39,7 @@ class SSDPClient():
     def __send_search(self):
         print("Sending M-SEARCH...")
         # INFO: 发送到SSDP组播地址上
-        self.__s.sendto(MS, (SSDP_ADDR, SSDP_PORT))
+        self.__s.sendto(MS.encode(), (SSDP_ADDR, SSDP_PORT))
 
 if __name__ == '__main__':
     port = SSDPClient()
