@@ -3,27 +3,34 @@
 
 import socket
 import netifaces
+import sys
+import getopt
 from ssdp_connect import Connection
 
-SSDP_ADDR = '239.255.255.250'
-ANY_ADDR = '0.0.0.0'
-SSDP_PORT = 1900
-SERVICE_NAME = 'FindMyPI'
+#SSDP_ADDR = '239.255.255.250'
+#ANY_ADDR = '0.0.0.0'
+#SSDP_PORT = 1900
+#SERVICE_NAME = 'FindMyPI'
 
 class SSDPServer():
-    def __init__(self):
+    def __init__(self, params):
+        self.__addr = params[0]
+        self.__port = params[1]
+        self.__service_name = params[2]
+        self.__local_ip = self.__localipfor(params[3])
+
+
         self.__s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.__s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        print(socket.getfqdn())
+        #print(socket.getfqdn())
         #local_ip = socket.gethostbyname(socket.gethostname())
-        local_ip = self.getlocalip()
-        any_ip = '0.0.0.0'
-        print("lip:%s, aip: %s" % (local_ip, any_ip))
+        #local_ip = self.getlocalip()
+        #any_ip = '0.0.0.0'
 
         # 绑定到任意地址和SSDP组播端口上
-        self.__s.bind((any_ip, SSDP_PORT))
-
+        self.__s.bind((self.__local_ip, self.__port))
+        print("Bind '%s' on %s:%d with %s" % (self.__service_name, self.__addr, self.__port, self.__local_ip))
         # INFO: 使用默认值
         # self.__s.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_TTL, 20)
         # self.__s.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_LOOP, 1)
@@ -31,30 +38,66 @@ class SSDPServer():
         #                     socket.inet_aton(intf) + socket.inet_aton('0.0.0.0'))
         # INFO: 添加到多播组
         #print (socket.inet_ntoa(socket.inet_aton(SSDP_ADDR) + socket.inet_aton(local_ip)))
-        self.__s.setsockopt(socket.SOL_IP, socket.IP_ADD_MEMBERSHIP, socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ANY_ADDR))
-        self.local_ip = local_ip
+        self.__s.setsockopt(socket.SOL_IP, socket.IP_ADD_MEMBERSHIP, socket.inet_aton(self.__addr) + socket.inet_aton(self.__local_ip))
+        #self.local_ip = local_ip
 
-    def getlocalip(self):
-        local_ip = ""
-        if netifaces.gateways()['default']:
-            default_if = netifaces.gateways()['default'][netifaces.AF_INET][1]
-            print(default_if)
-            if_list = [netifaces.ifaddresses(ifaces)[netifaces.AF_INET][0]['addr'] for ifaces in netifaces.interfaces() if ifaces == default_if]
-            print(if_list)
-            if len(if_list):
-                local_ip = if_list[0]
-        if not local_ip:
-            local_ip = socket.gethostbyname(socket.gethostname())
-        return local_ip
+    def __localipfor(self, iface):
+        return netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr']
 
     def start(self):
         while True:
-            data, addr = self.__s.recvfrom(2048)
-            conn = Connection(self.__s, data, addr, SSDP_ADDR, SSDP_PORT, SERVICE_NAME)
+            r_data, r_addr = self.__s.recvfrom(2048)
+            conn = Connection(self.__s, r_data, r_addr, self.__addr, self.__port, self.__service_name)
             conn.handle_request()
-        self.__s.setsockopt(socket.SOL_IP, socket.IP_DROP_MEMBERSHIP, socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ANY_ADDR))
+        self.__s.setsockopt(socket.SOL_IP, socket.IP_DROP_MEMBERSHIP, socket.inet_aton(self.__addr) + socket.inet_aton(self.__local_ip))
         self.__s.close()
 
+def __print_help():
+    print("-h print help")
+    print("-l                   List all network ifaces")
+    print("-a --addr            SSDP multicast addr")
+    print("-p --port            SSDP multicast port")
+    print("-s --service-name    Service name")
+    print("-i --iface           Network ifaces")
+    sys.exit(2)
+
+def __print_ifaces():
+    print(netifaces.interfaces())
+    sys.exit(0)
+
+def __parse_argv(argv):
+    # print(argv)
+    multicast_addr = ""
+    multicast_port = ""
+    service_name = ""
+    iface = ""
+
+    try:
+        opts, args = getopt.getopt(argv, "ha:p:s:i:l", ["addr=", "port=", "service-name=", "iface="])
+    except getopt.GetoptError:
+        __print_help() 
+    for opt, arg in opts:
+        if opt == '-h':
+            __print_help()
+        elif opt == '-l':
+            __print_ifaces()
+        elif opt in ("-a", "--addr"): 
+            multicast_addr = arg
+        elif opt in ("-p", "--port"):
+            multicast_port = int(arg)
+        elif opt in ("-s", "--service-name"):
+            service_name = arg
+        elif opt in ("-i", "--iface"):
+            iface = arg
+
+    if not iface and netifaces.gateways()['default']:
+        iface = netifaces.gateways()['default'][netifaces.AF_INET][1]
+
+    if not multicast_addr or not multicast_port or not service_name or not iface:
+        __print_help()
+    else:
+        return (multicast_addr, multicast_port, service_name, iface)
+
 if __name__ == '__main__':
-    port = SSDPServer()
+    port = SSDPServer(__parse_argv(sys.argv[1:]))
     port.start()
