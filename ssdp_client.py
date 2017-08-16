@@ -22,8 +22,8 @@ class SSDPClient():
         self.__s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         local_ip = ""
         if netifaces.gateways()['default']:
-            default_if = netifaces.gateways()['default'][netifaces.AF_INET][0]
-            if_list = [netifaces.ifaddresses(ifaces) for ifaces in netifaces.interfaces() if ifaces == default_if]
+            default_if = netifaces.gateways()['default'][netifaces.AF_INET][1]
+            if_list = [netifaces.ifaddresses(ifaces)[netifaces.AF_INET][0]['addr'] for ifaces in netifaces.interfaces() if ifaces == default_if]
             if len(if_list):
                 local_ip = if_list[0]
         if not local_ip:                
